@@ -22,6 +22,25 @@
  *
  */
 
+struct frame {
+	void *data;
+	uint32_t data_len;
+	void *ptr;
+	uint32_t len;
+	uint16_t dev_id;
+	uint8_t in;
+	uint8_t master;
+	uint16_t handle;
+	uint16_t cid;
+	uint16_t num;
+	uint8_t dlci;
+	uint8_t channel;
+	unsigned long flags;
+	struct timeval ts;
+	int pppdump_fd;
+	int audio_fd;
+};
+
 enum hciseq_action {
 	HCISEQ_ACTION_REPLAY = 0,
 };
@@ -33,6 +52,8 @@ struct hciseq_list {
 };
 
 struct hciseq_attr {
+	struct timeval ts_rel;
+	struct timeval ts_diff;
 	enum hciseq_action action;
 };
 
@@ -41,3 +62,5 @@ struct hciseq_node {
 	struct hciseq_node *next;
 	struct hciseq_attr *attr;
 };
+
+void calc_rel_ts(struct hciseq_list *seq);

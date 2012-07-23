@@ -37,8 +37,10 @@
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
 
 #include "main.h"
+#include "time.h"
 #include "lib/bluetooth.h"
 #include "lib/hci.h"
 #include "monitor/bt.h"
@@ -49,16 +51,22 @@
 #define MAX_EPOLL_EVENTS 1
 #define MAX_MSG 128
 
+#define TIMING_NONE 0
+#define TIMING_DELTA 1
+
 static struct hciseq_list dumpseq;
 
 static int fd;
 static int pos = 1;
 static int skipped = 0;
+static struct timeval start;
 
 static int epoll_fd;
 static struct epoll_event epoll_event;
 
 static int timeout = -1;
+static int timing = TIMING_NONE;
+static double factor = 1;
 static bool verbose = false;
 
 static inline int read_n(int fd, char *buf, int len)
@@ -313,6 +321,10 @@ static bool process_in()
 	if (n < 0) {
 		perror("Could not receive\n");
 		return false;
+	} else if (n == 0) {
+		printf("[%4d/%4d] Timeout\n", pos, dumpseq.len);
+		skipped++;
+		return true;
 	}
 
 	/* is this the packet in the sequence? */
@@ -353,9 +365,30 @@ static bool process_out()
 
 static void process()
 {
+	struct timeval last, last_diff;
+	__useconds_t delay;
 	bool processed;
 
+	gettimeofday(&last, NULL);
 	do {
+		/* delay */
+		if (timing == TIMING_DELTA) {
+			/* consider exec time of process_out()/process_in() */
+			get_timeval_passed(&last, &last_diff);
+			if (timeval_cmp(&dumpseq.current->attr->ts_diff,
+					&last_diff) >= 0) {
+				delay = timeval_diff(&dumpseq.current->attr
+						->ts_diff, &last_diff, NULL);
+				delay *= factor;
+				if (usleep(delay) == -1)
+					printf("Delay failed\n");
+			} else {
+				/* exec time was longer than delay */
+				printf("Packet delay - processing previous packet took longer than recorded time difference\n");
+			}
+			gettimeofday(&last, NULL);
+		}
+
 		if (dumpseq.current->frame->in == 1)
 			processed = process_out();
 		else
@@ -417,12 +450,18 @@ static void usage(void)
 	printf("hcireplay - Bluetooth replayer\n"
 	       "Usage:\thcireplay-client [options] file...\n"
 	       "options:\n"
-	       "\t-v, --verbose                Enable verbose output\n"
-	       "\t    --version                Give version information\n"
-	       "\t    --help                   Give a short usage message\n");
+	       "\t-d, --delay-mode={none|delta}    Specify delay mode (default is none)\n"
+	       "\t-m, --delay-modifier=N           Set delay modifier to N (default is 1)\n"
+	       "\t-t, --timeout=N                  Set timeout to N milliseconds when receiving packets from host\n"
+	       "\t-v, --verbose                    Enable verbose output\n"
+	       "\t    --version                    Give version information\n"
+	       "\t    --help                       Give a short usage message\n");
 }
 
 static const struct option main_options[] = {
+	{"delay-mode", required_argument, NULL, 'd'},
+	{"delay-modifier", required_argument, NULL, 'm'},
+	{"timeout", required_argument, NULL, 't'},
 	{"verbose", no_argument, NULL, 'v'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'H'},
@@ -437,12 +476,25 @@ int main(int argc, char *argv[])
 	while (1) {
 		int opt;
 
-		opt = getopt_long(argc, argv, "v",
+		opt = getopt_long(argc, argv, "d:m:t:v",
 						main_options, NULL);
 		if (opt < 0)
 			break;
 
 		switch (opt) {
+		case 'd':
+			if (!strcmp(optarg, "none"))
+				timing = TIMING_NONE;
+			else if (!strcmp(optarg, "delta"))
+				timing = TIMING_DELTA;
+
+			break;
+		case 'm':
+			factor = atof(optarg);
+			break;
+		case 't':
+			timeout = atoi(optarg);
+			break;
 		case 'v':
 			verbose = true;
 			break;
@@ -478,6 +530,9 @@ int main(int argc, char *argv[])
 		}
 	}
 	dumpseq.current = dumpseq.frames;
+	calc_rel_ts(&dumpseq);
+
+	gettimeofday(&start, NULL);
 
 	/*
 	 * make sure we open the interface after parsing

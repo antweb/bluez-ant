@@ -2,9 +2,6 @@
  *
  *  BlueZ - Bluetooth protocol stack for Linux
  *  Copyright (C) 2012       Anton Weber <ant@antweb.me>
- *  Copyright (C) 2011-2012  Intel Corporation
- *  Copyright (C) 2000-2002  Maxim Krasnyansky <maxk@qualcomm.com>
- *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -23,23 +20,12 @@
  *
  */
 
-#include "hciseq.h"
+void timeval_adjust_usec(struct timeval *l, struct timeval *r);
 
-struct btsnoop_hdr {
-	uint8_t id[8];		/* Identification Pattern */
-	uint32_t version;	/* Version Number = 1 */
-	uint32_t type;		/* Datalink Type */
-} __attribute__ ((packed));
-#define BTSNOOP_HDR_SIZE (sizeof(struct btsnoop_hdr))
+__useconds_t
+timeval_diff(struct timeval *l, struct timeval *r, struct timeval *diff);
 
-struct btsnoop_pkt {
-	uint32_t size;		/* Original Length */
-	uint32_t len;		/* Included Length */
-	uint32_t flags;		/* Packet Flags */
-	uint32_t drops;		/* Cumulative Drops */
-	uint64_t ts;		/* Timestamp microseconds */
-	uint8_t data[0];	/* Packet Data */
-} __attribute__ ((packed));
-#define BTSNOOP_PKT_SIZE (sizeof(struct btsnoop_pkt))
+int timeval_cmp(struct timeval *l, struct timeval *r);
 
-uint8_t btsnoop_id[] = { 0x62, 0x74, 0x73, 0x6e, 0x6f, 0x6f, 0x70, 0x00 };
+inline __useconds_t
+	get_timeval_passed(struct timeval *since, struct timeval *diff);

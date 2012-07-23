@@ -3,8 +3,7 @@
  *  BlueZ - Bluetooth protocol stack for Linux
  *  Copyright (C) 2012       Anton Weber <ant@antweb.me>
  *  Copyright (C) 2011-2012  Intel Corporation
- *  Copyright (C) 2000-2002  Maxim Krasnyansky <maxk@qualcomm.com>
- *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -23,23 +22,32 @@
  *
  */
 
+#include <stdlib.h>
+#include <stdint.h>
+
 #include "hciseq.h"
+#include "time.h"
+#include "monitor/bt.h"
 
-struct btsnoop_hdr {
-	uint8_t id[8];		/* Identification Pattern */
-	uint32_t version;	/* Version Number = 1 */
-	uint32_t type;		/* Datalink Type */
-} __attribute__ ((packed));
-#define BTSNOOP_HDR_SIZE (sizeof(struct btsnoop_hdr))
+void calc_rel_ts(struct hciseq_list *seq)
+{
+	struct timeval start;
+	struct hciseq_node *tmp;
 
-struct btsnoop_pkt {
-	uint32_t size;		/* Original Length */
-	uint32_t len;		/* Included Length */
-	uint32_t flags;		/* Packet Flags */
-	uint32_t drops;		/* Cumulative Drops */
-	uint64_t ts;		/* Timestamp microseconds */
-	uint8_t data[0];	/* Packet Data */
-} __attribute__ ((packed));
-#define BTSNOOP_PKT_SIZE (sizeof(struct btsnoop_pkt))
+	start = seq->current->frame->ts;
+	tmp = seq->current;
 
-uint8_t btsnoop_id[] = { 0x62, 0x74, 0x73, 0x6e, 0x6f, 0x6f, 0x70, 0x00 };
+	/* first packet */
+	tmp->attr->ts_rel.tv_sec = 0;
+	tmp->attr->ts_rel.tv_usec = 0;
+	tmp->attr->ts_diff.tv_sec = 0;
+	tmp->attr->ts_diff.tv_usec = 0;
+
+	while (tmp->next != NULL) {
+		timeval_diff(&tmp->next->frame->ts, &start,
+				&tmp->next->attr->ts_rel);
+		timeval_diff(&tmp->next->frame->ts, &tmp->frame->ts,
+				&tmp->next->attr->ts_diff);
+		tmp = tmp->next;
+	}
+}

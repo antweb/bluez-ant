@@ -41,7 +41,8 @@ emulator_btvirt_SOURCES = emulator/main.c monitor/bt.h \
 emulator_b1ee_SOURCES = emulator/b1ee.c monitor/mainloop.h monitor/mainloop.c
 
 tools_replay_btreplay_SOURCES = tools/replay/main.h tools/replay/main.c \
-					tools/replay/hciseq.h \
+					tools/replay/hciseq.h tools/replay/hciseq.c \
+					tools/replay/time.h tools/replay/time.c \
 					monitor/packet.h monitor/packet.c \
 					monitor/btsnoop.h monitor/btsnoop.c \
 					monitor/control.h monitor/control.c \
