@@ -52,6 +52,7 @@ tools_replay_btreplay_SOURCES = tools/replay/main.h tools/replay/main.c \
 					monitor/sdp.h monitor/sdp.c \
 					monitor/hcidump.h monitor/hcidump.c \
 					monitor/mainloop.h monitor/mainloop.c \
+					emulator/btdev.h emulator/btdev.c \
 					lib/hci.h
 
 tools_replay_btreplay_LDADD = lib/libbluetooth-private.la

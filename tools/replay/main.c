@@ -43,6 +43,7 @@
 #include "time.h"
 #include "lib/bluetooth.h"
 #include "lib/hci.h"
+#include "emulator/btdev.h"
 #include "monitor/bt.h"
 #include "monitor/btsnoop.h"
 #include "monitor/control.h"
@@ -68,6 +69,8 @@ static int timeout = -1;
 static int timing = TIMING_NONE;
 static double factor = 1;
 static bool verbose = false;
+
+static struct btdev *btdev;
 
 static inline int read_n(int fd, char *buf, int len)
 {
@@ -250,6 +253,34 @@ static int recv_frm(int fd, struct frame *frm)
 	return n;
 }
 
+static void btdev_send(const void *data, uint16_t len, void *user_data)
+{
+	struct frame frm;
+	static void *tmpdata = NULL;
+
+	/* copy data so we respect 'const' qualifier */
+	if (tmpdata == NULL)
+		tmpdata = malloc(HCI_MAX_FRAME_SIZE);
+
+	memcpy(tmpdata, data, len);
+
+	frm.data = tmpdata;
+	frm.len = len;
+	frm.data_len = len;
+	frm.in = 1;
+	printf("[Emulator ] ");
+	dump_frame(&frm);
+	send_frm(&frm);
+}
+
+static void btdev_recv(struct frame *frm)
+{
+	frm->in = 0;
+	printf("[Emulator ] ");
+	dump_frame(frm);
+	btdev_receive_h4(btdev, frm->data, frm->data_len);
+}
+
 static bool check_match(struct frame *l, struct frame *r, char *msg)
 {
 	uint8_t type_l = ((const uint8_t *) l->data)[0];
@@ -332,11 +363,16 @@ static bool process_in()
 	match = check_match(dumpseq.current->frame, &frm, msg);
 
 	/* process packet if match */
-	if (match)
+	if (match) {
 		printf("[%4d/%4d] ", pos, dumpseq.len);
-	else
-		printf("[ Unknown ] %s\n            ", msg);
 
+		if (dumpseq.current->attr->action == HCISEQ_ACTION_EMULATE) {
+			btdev_recv(&frm);
+			return true;
+		}
+	} else {
+		printf("[ Unknown ] %s\n            ", msg);
+	}
 	dump_frame(&frm);
 
 	return match;
@@ -345,6 +381,10 @@ static bool process_in()
 static bool process_out()
 {
 	uint8_t pkt_type;
+
+	/* emulator sends response automatically */
+	if (dumpseq.current->attr->action == HCISEQ_ACTION_EMULATE)
+		return 1;
 
 	pkt_type = ((const uint8_t *) dumpseq.current->frame->data)[0];
 
@@ -453,6 +493,7 @@ static void usage(void)
 	       "\t-d, --delay-mode={none|delta}    Specify delay mode (default is none)\n"
 	       "\t-m, --delay-modifier=N           Set delay modifier to N (default is 1)\n"
 	       "\t-t, --timeout=N                  Set timeout to N milliseconds when receiving packets from host\n"
+	       "\t-e, --btdev-type=TYPE            Set emulator device type\n"
 	       "\t-v, --verbose                    Enable verbose output\n"
 	       "\t    --version                    Give version information\n"
 	       "\t    --help                       Give a short usage message\n");
@@ -462,6 +503,7 @@ static const struct option main_options[] = {
 	{"delay-mode", required_argument, NULL, 'd'},
 	{"delay-modifier", required_argument, NULL, 'm'},
 	{"timeout", required_argument, NULL, 't'},
+	{"btdev-type", required_argument, NULL, 'e'},
 	{"verbose", no_argument, NULL, 'v'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'H'},
@@ -472,11 +514,12 @@ int main(int argc, char *argv[])
 {
 	int dumpfd;
 	int i;
+	enum btdev_type btdev_type = BTDEV_TYPE_BREDRLE;
 
 	while (1) {
 		int opt;
 
-		opt = getopt_long(argc, argv, "d:m:t:v",
+		opt = getopt_long(argc, argv, "d:m:t:ev",
 						main_options, NULL);
 		if (opt < 0)
 			break;
@@ -494,6 +537,17 @@ int main(int argc, char *argv[])
 			break;
 		case 't':
 			timeout = atoi(optarg);
+			break;
+		case 'e':
+			if (!strcmp(optarg, "BREDRLE"))
+				btdev_type = BTDEV_TYPE_BREDRLE;
+			else if (!strcmp(optarg, "BREDRLE"))
+				btdev_type = BTDEV_TYPE_BREDR;
+			else if (!strcmp(optarg, "LE"))
+				btdev_type = BTDEV_TYPE_LE;
+			else if (!strcmp(optarg, "AMP"))
+				btdev_type = BTDEV_TYPE_AMP;
+
 			break;
 		case 'v':
 			verbose = true;
@@ -532,6 +586,10 @@ int main(int argc, char *argv[])
 	dumpseq.current = dumpseq.frames;
 	calc_rel_ts(&dumpseq);
 
+	/* init emulator */
+	btdev = btdev_create(btdev_type, 0);
+	btdev_set_send_handler(btdev, btdev_send, NULL);
+
 	gettimeofday(&start, NULL);
 
 	/*
@@ -549,6 +607,7 @@ int main(int argc, char *argv[])
 	process();
 
 	vhci_close();
+	btdev_destroy(btdev);
 	delete_list();
 	printf("Terminating\n");
 
