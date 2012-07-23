@@ -43,7 +43,8 @@ struct frame {
 
 enum hciseq_action {
 	HCISEQ_ACTION_REPLAY = 0,
-	HCISEQ_ACTION_EMULATE = 1
+	HCISEQ_ACTION_EMULATE = 1,
+	HCISEQ_ACTION_SKIP = 2
 };
 
 struct hciseq_list {

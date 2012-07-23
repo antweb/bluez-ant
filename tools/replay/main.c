@@ -41,6 +41,7 @@
 
 #include "main.h"
 #include "time.h"
+#include "config-parser.h"
 #include "lib/bluetooth.h"
 #include "lib/hci.h"
 #include "emulator/btdev.h"
@@ -56,6 +57,7 @@
 #define TIMING_DELTA 1
 
 static struct hciseq_list dumpseq;
+static struct hciseq_type_cfg type_cfg;
 
 static int fd;
 static int pos = 1;
@@ -281,6 +283,35 @@ static void btdev_recv(struct frame *frm)
 	btdev_receive_h4(btdev, frm->data, frm->data_len);
 }
 
+static struct hciseq_attr *get_type_attr(struct frame *frm)
+{
+	uint8_t pkt_type = ((const uint8_t *) frm->data)[0];
+	uint16_t opcode;
+	uint8_t evt;
+
+	switch (pkt_type) {
+	case BT_H4_CMD_PKT:
+		opcode = *((uint16_t *) (frm->data + 1));
+		if (opcode > 0x2FFF)
+			return NULL;
+		return type_cfg.cmd[opcode];
+	case BT_H4_EVT_PKT:
+		evt = *((uint8_t *) (frm->data + 1));
+
+		/* use attributes of opcode for 'Command Complete' events */
+		if (evt == 0x0e) {
+			opcode = *((uint16_t *) (frm->data + 4));
+			return type_cfg.cmd[opcode];
+		}
+
+		return type_cfg.evt[evt];
+	case BT_H4_ACL_PKT:
+		return type_cfg.acl;
+	default:
+		return NULL;
+	}
+}
+
 static bool check_match(struct frame *l, struct frame *r, char *msg)
 {
 	uint8_t type_l = ((const uint8_t *) l->data)[0];
@@ -341,6 +372,7 @@ static bool process_in()
 {
 	static struct frame frm;
 	static uint8_t data[HCI_MAX_FRAME_SIZE];
+	struct hciseq_attr *attr;
 	int n;
 	bool match;
 	char msg[MAX_MSG];
@@ -362,6 +394,38 @@ static bool process_in()
 	msg[0] = '\0';
 	match = check_match(dumpseq.current->frame, &frm, msg);
 
+	/* check type config */
+	attr = get_type_attr(&frm);
+	if (attr != NULL) {
+		if (attr->action == HCISEQ_ACTION_SKIP) {
+			if (match) {
+				printf("[%4d/%4d] SKIPPING\n", pos,
+				       dumpseq.len);
+				return 1;
+			} else {
+				printf("[ Unknown ] %s\n            ",
+				       msg);
+				dump_frame(&frm);
+				printf("            SKIPPING\n");
+				return 0;
+			}
+		}
+		if (attr->action == HCISEQ_ACTION_EMULATE) {
+			if (match) {
+				printf("[%4d/%4d] EMULATING\n", pos,
+				       dumpseq.len);
+			} else {
+				printf("[ Unknown ] %s\n            ",
+				       msg);
+				printf("EMULATING\n");
+			}
+
+			btdev_recv(&frm);
+
+			return match;
+		}
+	}
+
 	/* process packet if match */
 	if (match) {
 		printf("[%4d/%4d] ", pos, dumpseq.len);
@@ -381,10 +445,19 @@ static bool process_in()
 static bool process_out()
 {
 	uint8_t pkt_type;
+	struct hciseq_attr *attr;
 
 	/* emulator sends response automatically */
 	if (dumpseq.current->attr->action == HCISEQ_ACTION_EMULATE)
 		return 1;
+
+	/* use type config if set */
+	attr = get_type_attr(dumpseq.current->frame);
+	if (attr != NULL) {
+		if (attr->action == HCISEQ_ACTION_SKIP ||
+				attr->action == HCISEQ_ACTION_EMULATE)
+			return true;
+	}
 
 	pkt_type = ((const uint8_t *) dumpseq.current->frame->data)[0];
 
@@ -411,6 +484,15 @@ static void process()
 
 	gettimeofday(&last, NULL);
 	do {
+		if (dumpseq.current->attr->action == HCISEQ_ACTION_SKIP) {
+			printf("[%4d/%4d] SKIPPING\n            ", pos,
+			       dumpseq.len);
+			dump_frame(dumpseq.current->frame);
+			dumpseq.current = dumpseq.current->next;
+			pos++;
+			continue;
+		}
+
 		/* delay */
 		if (timing == TIMING_DELTA) {
 			/* consider exec time of process_out()/process_in() */
@@ -483,6 +565,19 @@ static void delete_list()
 		free(tmp->attr);
 		free(tmp);
 	}
+}
+
+static void delete_type_cfg()
+{
+	int i;
+
+	for (i = 0; i < 9216; i++)
+		free(type_cfg.cmd[i]);
+
+	for (i = 0; i < 256; i++)
+		free(type_cfg.evt[i]);
+
+	free(type_cfg.acl);
 }
 
 static void usage(void)
@@ -609,6 +704,7 @@ int main(int argc, char *argv[])
 	vhci_close();
 	btdev_destroy(btdev);
 	delete_list();
+	delete_type_cfg();
 	printf("Terminating\n");
 
 	return EXIT_SUCCESS;
