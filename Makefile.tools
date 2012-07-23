@@ -28,7 +28,8 @@ endif
 if EXPERIMENTAL
 noinst_PROGRAMS += emulator/btvirt emulator/b1ee \
 					tools/mgmt-tester tools/gap-tester \
-					tools/l2cap-tester
+					tools/l2cap-tester \
+					tools/replay/btreplay
 
 emulator_btvirt_SOURCES = emulator/main.c monitor/bt.h \
 					monitor/mainloop.h monitor/mainloop.c \
@@ -38,6 +39,21 @@ emulator_btvirt_SOURCES = emulator/main.c monitor/bt.h \
 					emulator/bthost.h emulator/bthost.c
 
 emulator_b1ee_SOURCES = emulator/b1ee.c monitor/mainloop.h monitor/mainloop.c
+
+tools_replay_btreplay_SOURCES = tools/replay/main.h tools/replay/main.c \
+					tools/replay/hciseq.h \
+					monitor/packet.h monitor/packet.c \
+					monitor/btsnoop.h monitor/btsnoop.c \
+					monitor/control.h monitor/control.c \
+					monitor/display.h monitor/display.c \
+					monitor/uuid.h monitor/uuid.c \
+					monitor/l2cap.h monitor/l2cap.c \
+					monitor/sdp.h monitor/sdp.c \
+					monitor/hcidump.h monitor/hcidump.c \
+					monitor/mainloop.h monitor/mainloop.c \
+					lib/hci.h
+
+tools_replay_btreplay_LDADD = lib/libbluetooth-private.la
 
 tools_mgmt_tester_SOURCES = tools/mgmt-tester.c monitor/bt.h \
 				emulator/btdev.h emulator/btdev.c \

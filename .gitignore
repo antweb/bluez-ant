@@ -75,6 +75,7 @@ tools/gap-tester
 tools/btattach
 tools/btmgmt
 tools/btsnoop
+tools/replay/btreplay
 monitor/btmon
 emulator/btvirt
 emulator/b1ee
