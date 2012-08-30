@@ -1,0 +1,60 @@
+BlueZ Bluetooth Replayer Tutorial
+*********************************
+
+Copyright (C) 2012  Anton Weber <ant@antweb.me>
+
+
+Create dump
+===========
+A dump can be recorded using the -b option of btmon.
+The best way to record a suitable dump is to disable the Bluetooth controller
+before recording. That way btmon also records the initialisation sequence.
+
+# sudo btmon -b testdump
+<plug in / enable Bluetooth contoller>
+<connect Bluetooth mouse>
+<move mouse around>
+<CTRL+C>
+
+
+Replay dump
+===========
+
+First make sure the VHCI driver is loaded:
+
+# sudo modprobe hci_vhci
+# ls /dev | grep vhci
+
+Now the dump can be replayed with btreplay. When the same machine is used to
+replay the dump, it is recommended to unplug / disable the Bluetooth controller
+to avoid conflicts.
+
+The simplest way to use the Bluetooth Replayer is to run
+
+# sudo btreplay testdump
+
+Some scenarios require minimal delay during the execution to be replayed
+correctly (such as the example above).
+One solution is to use the delta timing mode that adds delays according to the
+time difference between packets in the dump file.
+
+# sudo btreplay -d delta testdump
+
+Running btreplay with a dump from another machine can cause some issues with
+the initialisation sequence. The host might send out packets in a different
+order.
+btreplay will show several packets marked as "[Unknown] ! Wrong opcode" and
+the replay process can get stuck.
+When these packets are not relevant to the actual scenario, they can be ignored
+using a config file. For example, they can be passed on to the emulator.
+To do so, set the action for these packet types to 'emulate' in a config file.
+
+Example config contents:
+
+HCI_CMD_0x03|0x0001 action=emulate
+HCI_CMD_0x03|0x0018 action=emulate
+
+
+and run btreplay with this config file.
+
+# sudo btreplay -d delta -c testconfig testdump
