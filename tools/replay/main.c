@@ -39,7 +39,6 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 
-#include "main.h"
 #include "time.h"
 #include "config-parser.h"
 #include "lib/bluetooth.h"
@@ -73,72 +72,6 @@ static double factor = 1;
 static bool verbose = false;
 
 static struct btdev *btdev;
-
-static inline int read_n(int fd, char *buf, int len)
-{
-	int t = 0, w;
-
-	while (len > 0) {
-		w = read(fd, buf, len);
-		if (w < 0) {
-			if (errno == EINTR || errno == EAGAIN)
-				continue;
-			return -1;
-		} else if (w == 0) {
-			return 0;
-		}
-
-		len -= w;
-		buf += w;
-		t += w;
-	}
-
-	return t;
-}
-
-static int
-parse_btsnoop(int fd, struct frame *frm, struct btsnoop_hdr *hdr)
-{
-	struct btsnoop_pkt pkt;
-	uint8_t pkt_type;
-	uint64_t ts;
-	int n;
-
-	n = read_n(fd, (void *) &pkt, BTSNOOP_PKT_SIZE);
-	if (n < 0)
-		return -1;
-	else if (n == 0)
-		return 0;
-
-	switch (ntohl(hdr->type)) {
-	case 1001:
-		if (ntohl(pkt.flags) & 0x02) {
-			if (ntohl(pkt.flags) & 0x01)
-				pkt_type = HCI_EVENT_PKT;
-			else
-				pkt_type = HCI_COMMAND_PKT;
-		} else
-			pkt_type = HCI_ACLDATA_PKT;
-
-		((uint8_t *) frm->data)[0] = pkt_type;
-
-		frm->data_len = ntohl(pkt.len) + 1;
-		n = read_n(fd, frm->data + 1, frm->data_len - 1);
-		break;
-
-	case 1002:
-		frm->data_len = ntohl(pkt.len);
-		n = read_n(fd, frm->data, frm->data_len);
-		break;
-	}
-
-	frm->in = ntohl(pkt.flags) & 0x01;
-	ts = ntoh64(pkt.ts) - 0x00E03AB44A676000ll;
-	frm->ts.tv_sec = (ts / 1000000ll) + 946684800ll;
-	frm->ts.tv_usec = ts % 1000000ll;
-
-	return n;
-}
 
 static int parse_dump(int fd, struct hciseq_list *seq)
 {

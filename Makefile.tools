@@ -44,6 +44,7 @@ tools_replay_btreplay_SOURCES = tools/replay/main.h tools/replay/main.c \
 					tools/replay/hciseq.h tools/replay/hciseq.c \
 					tools/replay/time.h tools/replay/time.c \
 					tools/replay/config-parser.h tools/replay/config-parser.c \
+					tools/hcidump-common.h tools/hcidump-common.c \
 					monitor/packet.h monitor/packet.c \
 					monitor/btsnoop.h monitor/btsnoop.c \
 					monitor/control.h monitor/control.c \
@@ -130,7 +131,8 @@ tools_hcidump_SOURCES = tools/hcidump.c \
 				tools/parser/tcpip.c \
 				tools/parser/ericsson.c \
 				tools/parser/csr.c \
-				tools/parser/bpa.c
+				tools/parser/bpa.c \
+				tools/hcidump-common.h tools/hcidump-common.c
 tools_hcidump_LDADD = lib/libbluetooth-private.la
 
 tools_rfcomm_LDADD = lib/libbluetooth-private.la

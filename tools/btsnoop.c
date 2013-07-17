@@ -38,6 +38,8 @@
 #include <arpa/inet.h>
 #include <sys/stat.h>
 
+#include "btsnoop.h"
+
 #define MONITOR_NEW_INDEX	0
 #define MONITOR_DEL_INDEX	1
 #define MONITOR_COMMAND_PKT	2
@@ -59,26 +61,6 @@ static inline uint64_t ntoh64(uint64_t n)
 }
 
 #define hton64(x)     ntoh64(x)
-
-struct btsnoop_hdr {
-	uint8_t		id[8];		/* Identification Pattern */
-	uint32_t	version;	/* Version Number = 1 */
-	uint32_t	type;		/* Datalink Type */
-} __attribute__ ((packed));
-#define BTSNOOP_HDR_SIZE (sizeof(struct btsnoop_hdr))
-
-struct btsnoop_pkt {
-	uint32_t	size;		/* Original Length */
-	uint32_t	len;		/* Included Length */
-	uint32_t	flags;		/* Packet Flags */
-	uint32_t	drops;		/* Cumulative Drops */
-	uint64_t	ts;		/* Timestamp microseconds */
-	uint8_t		data[0];	/* Packet Data */
-} __attribute__ ((packed));
-#define BTSNOOP_PKT_SIZE (sizeof(struct btsnoop_pkt))
-
-static const uint8_t btsnoop_id[] = { 0x62, 0x74, 0x73, 0x6e,
-				      0x6f, 0x6f, 0x70, 0x00 };
 
 static const uint32_t btsnoop_version = 1;
 

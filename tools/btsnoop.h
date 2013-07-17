@@ -1,10 +1,9 @@
 /*
  *
  *  BlueZ - Bluetooth protocol stack for Linux
- *  Copyright (C) 2012       Anton Weber <ant@antweb.me>
+ *
  *  Copyright (C) 2011-2012  Intel Corporation
- *  Copyright (C) 2000-2002  Maxim Krasnyansky <maxk@qualcomm.com>
- *  Copyright (C) 2003-2011  Marcel Holtmann <marcel@holtmann.org>
+ *  Copyright (C) 2004-2010  Marcel Holtmann <marcel@holtmann.org>
  *
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -40,4 +39,5 @@ struct btsnoop_pkt {
 } __attribute__ ((packed));
 #define BTSNOOP_PKT_SIZE (sizeof(struct btsnoop_pkt))
 
-uint8_t btsnoop_id[] = { 0x62, 0x74, 0x73, 0x6e, 0x6f, 0x6f, 0x70, 0x00 };
+const uint8_t btsnoop_id[] = { 0x62, 0x74, 0x73, 0x6e,
+				      0x6f, 0x6f, 0x70, 0x00 };

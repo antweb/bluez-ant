@@ -22,24 +22,7 @@
  *
  */
 
-struct frame {
-	void *data;
-	uint32_t data_len;
-	void *ptr;
-	uint32_t len;
-	uint16_t dev_id;
-	uint8_t in;
-	uint8_t master;
-	uint16_t handle;
-	uint16_t cid;
-	uint16_t num;
-	uint8_t dlci;
-	uint8_t channel;
-	unsigned long flags;
-	struct timeval ts;
-	int pppdump_fd;
-	int audio_fd;
-};
+#include "tools/hcidump-common.h"
 
 enum hciseq_action {
 	HCISEQ_ACTION_REPLAY = 0,

@@ -64,77 +64,8 @@ static char *dump_file = NULL;
 static char *pppdump_file = NULL;
 static char *audio_file = NULL;
 
-struct hcidump_hdr {
-	uint16_t	len;
-	uint8_t		in;
-	uint8_t		pad;
-	uint32_t	ts_sec;
-	uint32_t	ts_usec;
-} __attribute__ ((packed));
-#define HCIDUMP_HDR_SIZE (sizeof(struct hcidump_hdr))
-
-struct btsnoop_hdr {
-	uint8_t		id[8];		/* Identification Pattern */
-	uint32_t	version;	/* Version Number = 1 */
-	uint32_t	type;		/* Datalink Type */
-} __attribute__ ((packed));
-#define BTSNOOP_HDR_SIZE (sizeof(struct btsnoop_hdr))
-
-struct btsnoop_pkt {
-	uint32_t	size;		/* Original Length */
-	uint32_t	len;		/* Included Length */
-	uint32_t	flags;		/* Packet Flags */
-	uint32_t	drops;		/* Cumulative Drops */
-	uint64_t	ts;		/* Timestamp microseconds */
-	uint8_t		data[0];	/* Packet Data */
-} __attribute__ ((packed));
-#define BTSNOOP_PKT_SIZE (sizeof(struct btsnoop_pkt))
-
-static uint8_t btsnoop_id[] = { 0x62, 0x74, 0x73, 0x6e, 0x6f, 0x6f, 0x70, 0x00 };
-
 static uint32_t btsnoop_version = 0;
 static uint32_t btsnoop_type = 0;
-
-struct pktlog_hdr {
-	uint32_t	len;
-	uint64_t	ts;
-	uint8_t		type;
-} __attribute__ ((packed));
-#define PKTLOG_HDR_SIZE (sizeof(struct pktlog_hdr))
-
-static inline int read_n(int fd, char *buf, int len)
-{
-	int t = 0, w;
-
-	while (len > 0) {
-		if ((w = read(fd, buf, len)) < 0) {
-			if (errno == EINTR || errno == EAGAIN)
-				continue;
-			return -1;
-		}
-		if (!w)
-			return 0;
-		len -= w; buf += w; t += w;
-	}
-	return t;
-}
-
-static inline int write_n(int fd, char *buf, int len)
-{
-	int t = 0, w;
-
-	while (len > 0) {
-		if ((w = write(fd, buf, len)) < 0) {
-			if (errno == EINTR || errno == EAGAIN)
-				continue;
-			return -1;
-		}
-		if (!w)
-			return 0;
-		len -= w; buf += w; t += w;
-	}
-	return t;
-}
 
 static int process_frames(int dev, int sock, int fd, unsigned long flags)
 {
@@ -312,30 +243,7 @@ static void read_dump(int fd)
 			return;
 
 		if (parser.flags & DUMP_PKTLOG) {
-			switch (ph.type) {
-			case 0x00:
-				((uint8_t *) frm.data)[0] = HCI_COMMAND_PKT;
-				frm.in = 0;
-				break;
-			case 0x01:
-				((uint8_t *) frm.data)[0] = HCI_EVENT_PKT;
-				frm.in = 1;
-				break;
-			case 0x02:
-				((uint8_t *) frm.data)[0] = HCI_ACLDATA_PKT;
-				frm.in = 0;
-				break;
-			case 0x03:
-				((uint8_t *) frm.data)[0] = HCI_ACLDATA_PKT;
-				frm.in = 1;
-				break;
-			default:
-				lseek(fd, ntohl(ph.len) - 9, SEEK_CUR);
-				continue;
-			}
-
-			frm.data_len = ntohl(ph.len) - 8;
-			err = read_n(fd, frm.data + 1, frm.data_len - 1);
+			err = parse_pktlog(fd, &frm, &ph);
 		} else if (parser.flags & DUMP_BTSNOOP) {
 			uint32_t opcode;
 			uint8_t pkt_type;
@@ -400,8 +308,7 @@ static void read_dump(int fd)
 				err = read_n(fd, frm.data + 1, frm.data_len - 1);
 			}
 		} else {
-			frm.data_len = btohs(dh.len);
-			err = read_n(fd, frm.data, frm.data_len);
+			err = parse_hcidump(fd, &frm, &dh);
 		}
 
 		if (err < 0)
